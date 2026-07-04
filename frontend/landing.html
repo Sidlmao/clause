@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Clause — PRDs that test themselves</title>
+<meta name="description" content="Clause compiles product requirements into runnable eval suites, flags untestable requirements, and shows which promises your AI feature is actually keeping." />
+<style>
+  :root {
+    --ink:#14161d; --body:#454c59; --muted:#6d7482; --faint:#9aa1ae;
+    --bg:#ffffff; --bg-2:#f6f7fa; --border:#e5e8ef;
+    --accent:#4f46e5; --accent-soft:#eef0ff;
+    --dark:#0b0d12; --dark-panel:#12151c; --dark-border:#222836; --dark-text:#e8ebf2; --dark-muted:#8b94a7;
+    --indigo:#7c86ff; --green:#3fb950; --amber:#d9a13b; --red:#f47067;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--body);
+    font:16px/1.6 "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  a { color:inherit; text-decoration:none; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 24px; }
+
+  /* nav */
+  nav { display:flex; align-items:center; gap:28px; padding:20px 0; }
+  .logo { display:flex; align-items:baseline; gap:8px; color:var(--ink); font-weight:800; font-size:19px; }
+  .logo .cursor { width:8px; height:16px; background:var(--accent); border-radius:1px;
+    transform:translateY(2px); animation:blink 1.4s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  nav .links { margin-left:auto; display:flex; gap:22px; align-items:center; font-size:14.5px; color:var(--muted); }
+  nav .links a:hover { color:var(--ink); }
+  .btn { display:inline-block; background:var(--accent); color:#fff; font-weight:600; font-size:14.5px;
+    padding:9px 18px; border-radius:8px; transition:filter .15s, transform .08s; }
+  .btn:hover { filter:brightness(1.1); } .btn:active { transform:translateY(1px); }
+  .btn.ghost { background:transparent; color:var(--ink); border:1px solid var(--border); }
+  .btn.ghost:hover { border-color:var(--faint); filter:none; }
+
+  /* hero */
+  .hero { display:grid; grid-template-columns:1.05fr 1fr; gap:48px; align-items:center; padding:64px 0 72px; }
+  h1 { color:var(--ink); font-size:52px; line-height:1.08; letter-spacing:-1.5px; font-weight:800; }
+  h1 em { font-style:normal; color:var(--accent); }
+  .hero p.sub { margin-top:18px; font-size:18px; max-width:46ch; }
+  .hero .ctas { margin-top:28px; display:flex; gap:12px; }
+  .hero .note { margin-top:14px; font-size:13px; color:var(--faint); }
+
+  /* product mock (pure CSS, no images) */
+  .mock { background:var(--dark); border:1px solid var(--dark-border); border-radius:12px; padding:14px;
+    box-shadow:0 24px 60px rgba(20,24,45,.18); color:var(--dark-text); font-size:12.5px; position:relative; }
+  .mock .bar { display:flex; gap:6px; margin-bottom:12px; }
+  .mock .bar i { width:9px; height:9px; border-radius:99px; background:var(--dark-border); }
+  .m-clause { border:1px solid var(--dark-border); border-radius:8px; padding:9px 11px; margin-bottom:8px;
+    background:var(--dark-panel); }
+  .m-chip { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.4px; padding:1px 7px;
+    border-radius:99px; text-transform:uppercase; margin-right:5px; }
+  .c-ind { background:rgba(124,134,255,.14); color:var(--indigo); }
+  .c-grn { background:rgba(63,185,80,.14); color:var(--green); }
+  .c-amb { background:rgba(217,161,59,.15); color:var(--amber); }
+  .c-red { background:rgba(244,112,103,.14); color:var(--red); }
+  .m-clause p { margin-top:5px; color:var(--dark-text); }
+  .m-clause .rw { margin-top:7px; border:1px solid var(--amber); background:rgba(217,161,59,.08);
+    border-radius:6px; padding:6px 9px; font-size:11.5px; color:var(--dark-muted); }
+  .m-clause .rw b { color:var(--amber); font-size:10px; letter-spacing:.5px; }
+  .m-accept { display:inline-block; margin-top:6px; background:var(--accent); color:#fff; font-size:10.5px;
+    font-weight:700; padding:3px 9px; border-radius:5px; }
+  .score-float { position:absolute; right:-18px; bottom:-22px; background:#fff; border:1px solid var(--border);
+    border-radius:12px; padding:14px 18px; box-shadow:0 12px 32px rgba(20,24,45,.14); text-align:center; }
+  .score-float .n { font-size:26px; font-weight:800; color:var(--green); font-family:ui-monospace, Menlo, monospace; }
+  .score-float .l { font-size:11px; color:var(--muted); letter-spacing:.4px; }
+
+  /* features */
+  .band { background:var(--bg-2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+    padding:64px 0; }
+  .tri { display:grid; grid-template-columns:repeat(3, 1fr); gap:36px; }
+  .tri .glyph { width:40px; height:40px; border-radius:9px; background:var(--accent-soft); color:var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:14px; }
+  .tri h3 { color:var(--ink); font-size:18px; margin-bottom:6px; }
+  .tri p { font-size:14.5px; }
+
+  /* how it works */
+  .how { padding:72px 0; text-align:center; }
+  .how h2, .band h2 { color:var(--ink); font-size:30px; letter-spacing:-.6px; margin-bottom:10px; }
+  .how .lead { color:var(--muted); max-width:62ch; margin:0 auto 40px; }
+  .steps { display:grid; grid-template-columns:repeat(4, 1fr); gap:0; text-align:left;
+    border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .step { padding:22px 22px 24px; border-right:1px solid var(--border); background:#fff; }
+  .step:last-child { border-right:0; }
+  .step .k { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; color:var(--accent); font-weight:700; }
+  .step h4 { color:var(--ink); margin:6px 0 4px; font-size:15.5px; }
+  .step p { font-size:13.5px; }
+
+  /* why */
+  .why { padding:0 0 72px; }
+  .why .quotebox { border-left:3px solid var(--accent); background:var(--accent-soft);
+    border-radius:0 10px 10px 0; padding:22px 26px; max-width:760px; margin:0 auto; }
+  .why .quotebox p { color:var(--ink); font-size:17px; font-weight:500; }
+  .why .quotebox small { color:var(--muted); display:block; margin-top:8px; }
+
+  footer { border-top:1px solid var(--border); padding:28px 0 40px; font-size:14px; color:var(--muted);
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  footer .spacer { flex:1; }
+  footer a { color:var(--accent); font-weight:500; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns:1fr; padding:40px 0 56px; }
+    h1 { font-size:38px; }
+    .tri, .steps { grid-template-columns:1fr; }
+    .step { border-right:0; border-bottom:1px solid var(--border); }
+    .score-float { position:static; margin-top:14px; display:inline-block; }
+    nav .links { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <a class="logo" href="/">Clause<span class="cursor"></span></a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="https://github.com/Sidlmao/clause">GitHub</a>
+      <a class="btn" href="/app">Open Clause</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div>
+      <h1>PRDs that <em>test themselves</em>.</h1>
+      <p class="sub">Clause compiles your product requirements into runnable eval suites —
+        flags the requirements that can't be tested, rewrites them so they can be,
+        and shows you which promises your AI feature is <b>actually keeping</b>.</p>
+      <div class="ctas">
+        <a class="btn" href="/app">Compile your PRD</a>
+        <a class="btn ghost" href="https://github.com/Sidlmao/clause">View source</a>
+      </div>
+      <p class="note">Open source · runs locally · bring your own Anthropic key (or demo it in mock mode)</p>
+    </div>
+    <div class="mock">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="m-clause">
+        <span class="m-chip c-ind">testable</span><span class="m-chip c-grn">3/3 pass</span>
+        <p>The assistant must never promise a refund or guarantee compensation.</p>
+      </div>
+      <div class="m-clause">
+        <span class="m-chip c-amb">vague</span>
+        <p>The assistant should feel warm, friendly and delightful.</p>
+        <div class="rw"><b>SUGGESTED REWRITE ✦</b><br/>
+          In 90% of test scenarios, the assistant proposes a concrete next step and matches
+          the brand-voice rubric.<br/><span class="m-accept">Accept rewrite</span></div>
+      </div>
+      <div class="m-clause">
+        <span class="m-chip c-ind">testable</span><span class="m-chip c-red">2/3 fail</span>
+        <p>Responses must be no more than 3 sentences long.</p>
+      </div>
+      <div class="score-float"><div class="n">78%</div><div class="l">PROMISES KEPT</div></div>
+    </div>
+  </section>
+</div>
+
+<section class="band">
+  <div class="wrap">
+    <div class="tri">
+      <div>
+        <div class="glyph">✦</div>
+        <h3>Testability linter</h3>
+        <p>Every requirement is graded testable, vague, or untestable — with a one-click
+          measurable rewrite for the ones that would never survive contact with reality.
+          A spell-checker for product thinking.</p>
+      </div>
+      <div>
+        <div class="glyph mono">⚙</div>
+        <h3>Eval compiler</h3>
+        <p>Testable clauses become runnable checks: deterministic assertions where possible,
+          transparent LLM-judged rubrics where not. Point the suite at any HTTP endpoint
+          and get pass/fail per promise.</p>
+      </div>
+      <div>
+        <div class="glyph">◎</div>
+        <h3>Living dashboard</h3>
+        <p>The PRD stops being a dead document. Pass rates per clause, trends across runs,
+          and a top-level promises-kept score — a coverage report for product intent,
+          not code.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <section class="how" id="how">
+    <h2>Spec → suite → verdict</h2>
+    <p class="lead">Eval tools start from datasets. Doc tools stop at prose.
+      Clause connects the two: the PRD is the source of truth, and it compiles.</p>
+    <div class="steps">
+      <div class="step"><span class="k">01 WRITE</span>
+        <h4>Paste your PRD</h4><p>Plain markdown. Clause segments it into atomic, addressable requirement clauses.</p></div>
+      <div class="step"><span class="k">02 LINT</span>
+        <h4>Fix the untestable</h4><p>Vague promises get flagged with suggested rewrites you can accept in one click.</p></div>
+      <div class="step"><span class="k">03 COMPILE</span>
+        <h4>Generate the suite</h4><p>Each clause becomes eval cases — happy path, edge, and adversarial.</p></div>
+      <div class="step"><span class="k">04 RUN</span>
+        <h4>Watch the promises</h4><p>Run against your AI feature. Failures map back to the exact clause they broke.</p></div>
+    </div>
+  </section>
+
+  <section class="why">
+    <div class="quotebox">
+      <p>"Evals are the new PRD" is 2026's loudest product-management advice —
+        but no tool actually turns a PRD <i>into</i> evals. That's the gap Clause closes.</p>
+      <small>Why this exists</small>
+    </div>
+  </section>
+
+  <footer>
+    <span><b style="color:var(--ink)">Clause</b> — an open-source project by Sid Gadikota</span>
+    <span class="spacer"></span>
+    <a href="https://github.com/Sidlmao/clause">GitHub</a>
+    <a href="/app">Open the app</a>
+  </footer>
+</div>
+
+</body>
+</html>

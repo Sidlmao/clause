@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Clause — PRDs that test themselves</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htm/3.1.1/htm.min.js"></script>
+<style>
+  /* ---------- theme ---------- */
+  :root, [data-theme="dark"] {
+    --bg:#0b0d12; --panel:#12151c; --panel-2:#161a23; --border:#222836; --border-soft:#1a1f2b;
+    --text:#e8ebf2; --muted:#8b94a7; --faint:#5b6375;
+    --accent:#7c86ff; --accent-deep:#4f46e5;
+    --green:#3fb950; --amber:#d9a13b; --red:#f47067;
+    --green-bg:rgba(63,185,80,.12); --amber-bg:rgba(217,161,59,.13); --red-bg:rgba(244,112,103,.12);
+    --accent-bg:rgba(124,134,255,.12); --mark-line:rgba(124,134,255,.45);
+    --shadow:0 1px 0 rgba(0,0,0,.25);
+  }
+  [data-theme="light"] {
+    --bg:#f7f8fa; --panel:#ffffff; --panel-2:#f2f4f8; --border:#e3e7ef; --border-soft:#edf0f5;
+    --text:#171a21; --muted:#5d6573; --faint:#9aa1ae;
+    --accent:#4f46e5; --accent-deep:#4338ca;
+    --green:#1a7f37; --amber:#9a6700; --red:#cf222e;
+    --green-bg:rgba(26,127,55,.09); --amber-bg:rgba(154,103,0,.10); --red-bg:rgba(207,34,46,.08);
+    --accent-bg:rgba(79,70,229,.08); --mark-line:rgba(79,70,229,.35);
+    --shadow:0 1px 2px rgba(20,24,40,.06);
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font:14px/1.55 "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; transition:background .25s, color .25s;
+  }
+  code, .mono { font-family:ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+
+  /* ---------- shell ---------- */
+  .shell { display:grid; grid-template-columns:224px 1fr; grid-template-rows:52px 1fr; height:100vh; }
+  .topbar {
+    grid-column:1 / 3; display:flex; align-items:center; gap:14px; padding:0 18px;
+    border-bottom:1px solid var(--border); background:var(--panel);
+  }
+  .logo { display:flex; align-items:baseline; gap:9px; }
+  .logo b { font-size:15.5px; letter-spacing:.3px; }
+  .logo .cursor { display:inline-block; width:7px; height:14px; background:var(--accent);
+    transform:translateY(2px); animation:blink 1.4s steps(1) infinite; border-radius:1px; }
+  @keyframes blink { 50% { opacity:0; } }
+  .logo span.tag { color:var(--muted); font-size:12.5px; }
+  .top-actions { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .pill { font-size:11.5px; color:var(--muted); border:1px solid var(--border); padding:3px 10px;
+    border-radius:99px; white-space:nowrap; }
+  .pill.live { color:var(--green); border-color:var(--green); }
+
+  .sidebar { border-right:1px solid var(--border); background:var(--panel); padding:14px 10px;
+    display:flex; flex-direction:column; gap:2px; }
+  .side-label { font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color:var(--faint);
+    padding:8px 10px 4px; }
+  .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:7px;
+    color:var(--muted); cursor:pointer; border:0; background:none; font:inherit; text-align:left; width:100%;
+    transition:background .15s, color .15s; }
+  .nav-item:hover { background:var(--panel-2); color:var(--text); }
+  .nav-item.active { background:var(--accent-bg); color:var(--accent); font-weight:600; }
+  .nav-item .glyph { width:16px; text-align:center; font-size:13px; }
+  .side-doc { padding:7px 10px; border-radius:7px; font-size:13px; color:var(--text);
+    background:var(--panel-2); border:1px solid var(--border-soft); margin:2px 0 0; }
+  .side-doc small { display:block; color:var(--faint); font-size:11px; margin-top:1px; }
+
+  .main { overflow:auto; padding:22px 26px; }
+  .view-head { display:flex; align-items:center; gap:12px; margin:0 0 16px; }
+  .view-head h1 { font-size:17px; margin:0; letter-spacing:.2px; }
+  .view-head .sub { color:var(--muted); font-size:13px; }
+
+  /* ---------- buttons ---------- */
+  .btn { border:1px solid var(--border); background:var(--panel-2); color:var(--text);
+    border-radius:7px; padding:7px 13px; font:inherit; font-weight:600; font-size:13px; cursor:pointer;
+    transition:transform .08s, background .15s, border-color .15s, filter .15s; }
+  .btn:hover { border-color:var(--faint); }
+  .btn:active { transform:translateY(1px); }
+  .btn.primary { background:var(--accent-deep); border-color:var(--accent-deep); color:#fff; }
+  .btn.primary:hover { filter:brightness(1.12); }
+  .btn.ghost { background:transparent; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn.sm { padding:4px 10px; font-size:12px; }
+
+  /* ---------- chips ---------- */
+  .chip { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+    letter-spacing:.4px; padding:2px 8px; border-radius:99px; text-transform:uppercase;
+    transition:background .2s, color .2s; }
+  .chip::before { content:""; width:5px; height:5px; border-radius:99px; background:currentColor; }
+  .chip.testable  { background:var(--accent-bg); color:var(--accent); }
+  .chip.compiled  { background:var(--accent-bg); color:var(--accent); }
+  .chip.vague     { background:var(--amber-bg); color:var(--amber); }
+  .chip.untestable{ background:var(--red-bg); color:var(--red); }
+  .chip.pass { background:var(--green-bg); color:var(--green); }
+  .chip.fail { background:var(--red-bg); color:var(--red); }
+  .chip.cat { background:transparent; border:1px solid var(--border); color:var(--muted);
+    text-transform:none; letter-spacing:0; font-weight:500; }
+  .chip.cat::before { display:none; }
+
+  /* ---------- editor view ---------- */
+  .editor-grid { display:grid; grid-template-columns:minmax(380px, 1.25fr) minmax(330px, 1fr); gap:18px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); }
+  .card-head { display:flex; align-items:center; gap:10px; padding:11px 14px;
+    border-bottom:1px solid var(--border-soft); }
+  .card-head h2 { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin:0; }
+  .card-head .spacer { flex:1; }
+  .seg { display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+  .seg button { border:0; background:none; color:var(--muted); padding:4px 11px; font:inherit;
+    font-size:12px; cursor:pointer; }
+  .seg button.on { background:var(--accent-bg); color:var(--accent); font-weight:600; }
+
+  textarea.prd {
+    width:100%; min-height:460px; border:0; background:transparent; color:var(--text);
+    padding:16px 18px; font:13px/1.7 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    resize:vertical; outline:none;
+  }
+  .annotated { padding:16px 18px; min-height:460px; font-size:14px; line-height:2.05; white-space:pre-wrap; }
+  .mark { border-bottom:2px solid var(--mark-line); border-radius:3px; padding:1px 2px; cursor:pointer;
+    transition:background .15s; }
+  .mark:hover { background:var(--accent-bg); }
+  .mark.vague { border-bottom-color:var(--amber); }
+  .mark.untestable { border-bottom-color:var(--red); }
+  .mark.selected { background:var(--accent-bg); }
+  .mark sup { font-size:9px; font-weight:800; margin-left:3px; letter-spacing:.5px; }
+  .mark.testable sup { color:var(--accent); } .mark.vague sup { color:var(--amber); }
+  .mark.untestable sup { color:var(--red); }
+
+  .clause-list { display:flex; flex-direction:column; gap:9px; padding:12px; max-height:640px; overflow:auto; }
+  .clause-item { border:1px solid var(--border); border-radius:9px; padding:11px 13px; cursor:pointer;
+    background:var(--panel); transition:border-color .15s; animation:rise .35s both; }
+  .clause-item:hover { border-color:var(--faint); }
+  .clause-item.selected { border-color:var(--accent); }
+  .clause-item .row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .clause-item p { margin:7px 0 0; font-size:13.5px; }
+  .clause-item .why { color:var(--muted); font-size:12px; margin-top:4px; }
+  @keyframes rise { from { opacity:0; transform:translateY(6px); } }
+
+  /* the star: rewrite reveal */
+  .rewrite { margin-top:10px; border:1px solid var(--amber); border-radius:8px; overflow:hidden;
+    animation:reveal .3s ease-out both; background:var(--amber-bg); }
+  @keyframes reveal { from { opacity:0; transform:scale(.985) translateY(-3px); } }
+  .rewrite .rw-head { display:flex; align-items:center; gap:7px; padding:8px 11px 0;
+    font-size:11px; font-weight:700; letter-spacing:.6px; color:var(--amber); text-transform:uppercase; }
+  .rewrite .rw-head::before { content:"✦"; }
+  .rewrite p { margin:6px 0 0; padding:0 11px; font-size:13px; }
+  .rewrite .rw-actions { display:flex; gap:8px; padding:10px 11px 11px; }
+  .accepted-flash { animation:flash .8s ease-out; }
+  @keyframes flash { 0% { background:var(--green-bg); } 100% { background:transparent; } }
+
+  /* ---------- compile view ---------- */
+  .pipe { display:grid; grid-template-columns:1fr 26px 1.2fr 26px 120px; gap:10px; align-items:stretch;
+    padding:13px 14px; border-bottom:1px solid var(--border-soft); animation:rise .35s both; }
+  .pipe:last-child { border-bottom:0; }
+  .pipe .stage { border:1px solid var(--border); border-radius:8px; padding:9px 11px; background:var(--panel-2);
+    font-size:12.5px; overflow:hidden; position:relative; }
+  .pipe .arrow { align-self:center; text-align:center; color:var(--faint); }
+  .pipe .evals { display:flex; flex-direction:column; gap:6px; }
+  .evaldef { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; border-left:2px solid var(--accent);
+    padding:4px 8px; background:var(--panel); border-radius:0 5px 5px 0; word-break:break-word; }
+  .evaldef .kw { color:var(--accent); }
+  .verdict { display:flex; flex-direction:column; gap:5px; align-items:flex-start; justify-content:center; }
+  .compiling::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(100deg, transparent 30%, var(--accent-bg) 50%, transparent 70%);
+    animation:sweep 1.1s linear infinite; }
+  @keyframes sweep { from { transform:translateX(-100%);} to { transform:translateX(100%);} }
+
+  /* ---------- dashboard ---------- */
+  .score-row { display:flex; gap:18px; align-items:stretch; margin-bottom:18px; flex-wrap:wrap; }
+  .score-card { flex:1; min-width:210px; padding:16px 18px; }
+  .score-card .k { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+  .score-card .v { font-size:32px; font-weight:800; margin-top:4px;
+    font-family:ui-monospace, "SF Mono", Menlo, monospace; }
+  .score-card .v.good { color:var(--green); } .score-card .v.bad { color:var(--red); }
+  .score-card .v.accent { color:var(--accent); }
+  .score-card .s { color:var(--muted); font-size:12px; }
+  .promise { display:grid; grid-template-columns:1fr 130px 70px 110px; gap:14px; align-items:center;
+    padding:13px 16px; border-bottom:1px solid var(--border-soft); animation:rise .35s both; }
+  .promise:last-child { border-bottom:0; }
+  .promise .t { font-size:13.5px; }
+  .promise .t .row { display:flex; gap:6px; margin-bottom:4px; }
+  .bar { height:5px; border-radius:99px; background:var(--panel-2); overflow:hidden; border:1px solid var(--border-soft); }
+  .bar i { display:block; height:100%; background:var(--green); border-radius:99px;
+    transition:width .6s cubic-bezier(.22,1,.36,1); }
+  .bar i.bad { background:var(--red); } .bar i.mid { background:var(--amber); }
+  .rate { font-family:ui-monospace, Menlo, monospace; font-size:13px; font-weight:700; text-align:right; }
+  .spark { color:var(--accent); }
+  .spark-na { color:var(--faint); font-size:11px; }
+
+  .empty { padding:52px 20px; text-align:center; color:var(--muted); }
+  .empty b { color:var(--text); }
+  .busy { display:inline-flex; gap:8px; align-items:center; color:var(--muted); font-size:12.5px; }
+  .busy::before { content:""; width:11px; height:11px; border-radius:99px; border:2px solid var(--border);
+    border-top-color:var(--accent); animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toast { position:fixed; bottom:18px; right:18px; background:var(--panel); border:1px solid var(--border);
+    border-left:3px solid var(--red); border-radius:8px; padding:10px 14px; font-size:13px; max-width:380px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35); animation:rise .25s both; z-index:50; }
+
+  details.transcripts { padding:0 14px 12px; }
+  details.transcripts summary { font-size:12px; color:var(--muted); cursor:pointer; padding:6px 0; }
+  .tr { border-top:1px dashed var(--border); padding:8px 2px; font-size:12.5px; }
+  .tr .io { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; background:var(--panel-2);
+    border-radius:6px; padding:6px 9px; margin:5px 0; white-space:pre-wrap; word-break:break-word; }
+
+  @media (max-width: 980px) {
+    .shell { grid-template-columns:1fr; }
+    .sidebar { display:none; }
+    .editor-grid { grid-template-columns:1fr; }
+    .promise { grid-template-columns:1fr 70px; }
+    .promise .sparkcell, .promise .barcell { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+const html = htm.bind(React.createElement);
+
+const api = (path, opts) =>
+  fetch(path, { headers: { "Content-Type": "application/json" }, ...opts }).then(async r => {
+    if (!r.ok) throw new Error((await r.text()).slice(0, 300) || String(r.status));
+    return r.json();
+  });
+
+/* ---------- tiny components ---------- */
+
+function Chip({ kind, children }) {
+  return html`<span className=${"chip " + kind}>${children ?? kind}</span>`;
+}
+
+function Sparkline({ series }) {
+  if (!series || series.length < 2)
+    return html`<span className="spark-na">needs 2+ runs</span>`;
+  const w = 92, h = 26, pad = 3;
+  const pts = series.map((v, i) => {
+    const x = pad + (i * (w - 2 * pad)) / (series.length - 1);
+    const y = h - pad - (v / 100) * (h - 2 * pad);
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  return html`<svg className="spark" width=${w} height=${h} viewBox=${"0 0 " + w + " " + h}>
+    <polyline points=${pts} fill="none" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" />
+  </svg>`;
+}
+
+/* Annotated PRD: wraps extracted clause text in colored marks */
+function Annotated({ text, clauses, selectedId, onSelect }) {
+  const segs = useMemo(() => {
+    const found = [];
+    for (const c of clauses) {
+      const idx = text.indexOf(c.text);
+      if (idx >= 0) found.push({ start: idx, end: idx + c.text.length, c });
+    }
+    found.sort((a, b) => a.start - b.start);
+    const out = []; let pos = 0;
+    for (const f of found) {
+      if (f.start < pos) continue;               // skip overlaps
+      if (f.start > pos) out.push({ plain: text.slice(pos, f.start) });
+      out.push(f); pos = f.end;
+    }
+    if (pos < text.length) out.push({ plain: text.slice(pos) });
+    return out;
+  }, [text, clauses]);
+
+  return html`<div className="annotated">
+    ${segs.map((s, i) => s.plain !== undefined
+      ? html`<span key=${i}>${s.plain}</span>`
+      : html`<span key=${i}
+          className=${"mark " + s.c.testability + (s.c.id === selectedId ? " selected" : "")}
+          onClick=${() => onSelect(s.c.id)}>${s.c.text}<sup>${s.c.testability === "testable" ? "◆" : "!"}</sup></span>`)}
+  </div>`;
+}
+
+/* ---------- clause panel item (the star: flag → rewrite → accept) ---------- */
+
+function ClauseItem({ c, selected, onSelect, onAccept, justAccepted }) {
+  const rate = c._rate;
+  return html`<div
+      className=${"clause-item" + (selected ? " selected" : "") + (justAccepted ? " accepted-flash" : "")}
+      onClick=${() => onSelect(c.id)}>
+    <div className="row">
+      <${Chip} kind=${c.testability} />
+      <${Chip} kind="cat">${c.category}<//>
+      ${c.cases && c.cases.length > 0 && html`<${Chip} kind="cat">${c.cases.length} evals<//>`}
+      ${rate && html`<${Chip} kind=${rate.pass === rate.total ? "pass" : "fail"}>${rate.pass}/${rate.total}<//>`}
+    </div>
+    <p>${c.text}</p>
+    <div className="why">${c.lint_reason}</div>
+    ${selected && c.rewrite && html`
+      <div className="rewrite" onClick=${e => e.stopPropagation()}>
+        <div className="rw-head">Suggested testable rewrite</div>
+        <p>${c.rewrite}</p>
+        <div className="rw-actions">
+          <button className="btn primary sm" onClick=${() => onAccept(c)}>Accept rewrite</button>
+          <span style=${{ fontSize: "11.5px", color: "var(--muted)", alignSelf: "center" }}>
+            replaces the clause in your PRD — recompile to regenerate evals</span>
+        </div>
+      </div>`}
+  </div>`;
+}
+
+/* ---------- views ---------- */
+
+function EditorView({ prd, setPrd, clauses, selectedId, setSelectedId, onAccept, justAccepted, dirty }) {
+  const [mode, setMode] = useState("edit");
+  useEffect(() => { if (clauses.length && !dirty) setMode("annotated"); }, [clauses.length]);
+  const listRef = useRef(null);
+
+  const select = (id) => {
+    setSelectedId(id);
+    const el = listRef.current && listRef.current.querySelector('[data-cid="' + id + '"]');
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+
+  return html`<div className="editor-grid">
+    <div className="card">
+      <div className="card-head">
+        <h2>Product Requirements</h2>
+        ${dirty && html`<${Chip} kind="vague">edited — recompile<//>`}
+        <div className="spacer"></div>
+        <div className="seg">
+          <button className=${mode === "edit" ? "on" : ""} onClick=${() => setMode("edit")}>Edit</button>
+          <button className=${mode === "annotated" ? "on" : ""}
+            onClick=${() => clauses.length && setMode("annotated")}>Annotated</button>
+        </div>
+      </div>
+      ${mode === "edit"
+        ? html`<textarea className="prd" spellCheck="false" value=${prd}
+            onChange=${e => setPrd(e.target.value)}></textarea>`
+        : html`<${Annotated} text=${prd} clauses=${clauses} selectedId=${selectedId} onSelect=${select} />`}
+    </div>
+    <div className="card">
+      <div className="card-head"><h2>Extracted clauses</h2><div className="spacer"></div>
+        <span className="pill">${clauses.length || "—"}</span></div>
+      <div className="clause-list" ref=${listRef}>
+        ${!clauses.length && html`<div className="empty">Write your PRD, then <b>Compile</b>.<br/>
+          Each requirement becomes an addressable, testable clause.</div>`}
+        ${clauses.map((c, i) => html`<div key=${c.id} data-cid=${c.id} style=${{ animationDelay: (i * 45) + "ms" }}>
+          <${ClauseItem} c=${c} selected=${selectedId === c.id} onSelect=${setSelectedId}
+            onAccept=${onAccept} justAccepted=${justAccepted === c.id} />
+        </div>`)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function CompileView({ clauses, results, running }) {
+  const testable = clauses.filter(c => c.testability === "testable");
+  const byCase = {};
+  (results || []).forEach(r => { byCase[r.eval_case_id] = r; });
+  if (!testable.length) return html`<div className="card"><div className="empty">
+    Nothing compiled yet — go to <b>Editor</b> and compile your PRD.</div></div>`;
+  return html`<div className="card">
+    ${testable.map((c, i) => {
+      const cases = c.cases || [];
+      const rs = cases.map(e => byCase[e.id]).filter(Boolean);
+      const p = rs.filter(r => r.verdict === "pass").length;
+      return html`<div className="pipe" key=${c.id} style=${{ animationDelay: (i * 60) + "ms" }}>
+        <div className=${"stage" + (running ? " compiling" : "")}>
+          <${Chip} kind="cat">${c.category}<//>
+          <div style=${{ marginTop: "6px" }}>${c.text}</div>
+        </div>
+        <div className="arrow">→</div>
+        <div className=${"stage evals" + (running ? " compiling" : "")}>
+          ${cases.map(e => html`<div className="evaldef" key=${e.id}>
+            <span className="kw">${e.checker_type}</span>(${JSON.stringify(e.checker_config).slice(0, 60)})
+            <span style=${{ color: "var(--faint)" }}> ← "${e.input.slice(0, 46)}${e.input.length > 46 ? "…" : ""}"</span>
+          </div>`)}
+          ${!cases.length && html`<span style=${{ color: "var(--faint)" }}>no cases</span>`}
+        </div>
+        <div className="arrow">→</div>
+        <div className="verdict">
+          ${running ? html`<span className="busy">running</span>`
+            : rs.length
+              ? html`<${Chip} kind=${p === rs.length ? "pass" : "fail"}>${p}/${rs.length} pass<//>
+                     <span className="mono" style=${{ fontSize: "11px", color: "var(--muted)" }}>
+                       ${Math.round(rs.reduce((a, r) => a + (r.latency_ms || 0), 0) / rs.length)}ms avg</span>`
+              : html`<${Chip} kind="compiled">compiled<//>`}
+        </div>
+      </div>`;
+    })}
+    ${results && results.length > 0 && html`<details className="transcripts">
+      <summary>${results.length} transcripts</summary>
+      ${results.map(r => html`<div className="tr" key=${r.id}>
+        <${Chip} kind=${r.verdict === "pass" ? "pass" : "fail"}>${r.verdict}<//>
+        <span className="pill" style=${{ marginLeft: "6px" }}>${r.checker_type}</span>
+        <div className="io">IN  › ${r.input}</div>
+        <div className="io">OUT › ${r.output == null ? "(error)" : r.output}</div>
+        <span style=${{ color: "var(--muted)", fontSize: "12px" }}>${r.reason}</span>
+      </div>`)}
+    </details>`}
+  </div>`;
+}
+
+function DashboardView({ clauses, results, history }) {
+  const testable = clauses.filter(c => c.testability === "testable" && c.cases && c.cases.length);
+  const kept = testable.filter(c => c._rate && c._rate.pass === c._rate.total);
+  const attention = clauses.filter(c => c.testability !== "testable");
+  const total = (results || []).length;
+  const passed = (results || []).filter(r => r.verdict === "pass").length;
+  const score = testable.length ? Math.round((kept.length / testable.length) * 100) : null;
+
+  if (!clauses.length) return html`<div className="card"><div className="empty">
+    Compile and run your PRD to see its health dashboard.</div></div>`;
+
+  return html`<div>
+    <div className="score-row">
+      <div className="card score-card">
+        <div className="k">Promises kept</div>
+        <div className=${"v " + (score === null ? "" : score === 100 ? "good" : score >= 60 ? "accent" : "bad")}>
+          ${score === null ? "—" : score + "%"}</div>
+        <div className="s">${kept.length} of ${testable.length} verified clauses</div>
+      </div>
+      <div className="card score-card">
+        <div className="k">Eval cases passing</div>
+        <div className=${"v " + (total && passed === total ? "good" : "")}>${total ? passed + "/" + total : "—"}</div>
+        <div className="s">latest run</div>
+      </div>
+      <div className="card score-card">
+        <div className="k">Needs attention</div>
+        <div className=${"v " + (attention.length ? "bad" : "good")}>${attention.length}</div>
+        <div className="s">vague or untestable clauses</div>
+      </div>
+    </div>
+    <div className="card">
+      ${clauses.map((c, i) => {
+        const r = c._rate;
+        const pct = r ? Math.round((r.pass / r.total) * 100) : null;
+        const series = history.map(h => {
+          const hr = h[c.id]; return hr ? Math.round((hr.pass / hr.total) * 100) : null;
+        }).filter(v => v !== null);
+        return html`<div className="promise" key=${c.id} style=${{ animationDelay: (i * 40) + "ms" }}>
+          <div className="t">
+            <div className="row">
+              <${Chip} kind=${c.testability === "testable" ? (r ? (pct === 100 ? "pass" : "fail") : "compiled") : c.testability} />
+              <${Chip} kind="cat">${c.category}<//>
+            </div>
+            ${c.text}
+          </div>
+          <div className="barcell">${c.testability === "testable"
+            ? html`<div className="bar"><i className=${pct === null ? "" : pct === 100 ? "" : pct >= 50 ? "mid" : "bad"}
+                style=${{ width: (pct == null ? 0 : pct) + "%" }}></i></div>`
+            : html`<span style=${{ fontSize: "11px", color: "var(--faint)" }}>not verifiable as written</span>`}</div>
+          <div className="rate">${pct === null ? "—" : pct + "%"}</div>
+          <div className="sparkcell"><${Sparkline} series=${series} /></div>
+        </div>`;
+      })}
+    </div>
+  </div>`;
+}
+
+/* ---------- app shell ---------- */
+
+function App() {
+  const [theme, setTheme] = useState("dark");
+  const [view, setView] = useState("editor");
+  const [project, setProject] = useState(null);
+  const [prd, setPrd] = useState("");
+  const [compiledPrd, setCompiledPrd] = useState("");
+  const [clauses, setClauses] = useState([]);
+  const [run, setRun] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [busy, setBusy] = useState(null);
+  const [provider, setProvider] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [justAccepted, setJustAccepted] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const hydrate = (s) => {
+    const cls = (s.clauses || []).map(c => ({ ...c, _rate: s.run && s.run.clause_rates ? s.run.clause_rates[c.id] : undefined }));
+    setClauses(cls);
+    setRun(s.run || null);
+    if (s.prd) { setPrd(p => p || s.prd.content); setCompiledPrd(s.prd.content); }
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const samplePromise = api("/api/sample-prd");
+        const list = await api("/api/projects");
+        const p = list[0] || await api("/api/projects", { method: "POST", body: JSON.stringify({ name: "My AI Feature" }) });
+        setProject(p);
+        const s = await api("/api/projects/" + p.id + "/state");
+        hydrate(s);
+        if (!s.prd) setPrd((await samplePromise).content);
+      } catch (e) { setError("Backend unreachable — is uvicorn running? " + e.message); }
+    })();
+  }, []);
+
+  const compile = useCallback(async () => {
+    if (!project) return;
+    setBusy("Compiling — extract → lint → generate evals"); setError(null);
+    try {
+      const out = await api("/api/projects/" + project.id + "/prd", { method: "POST", body: JSON.stringify({ content: prd }) });
+      setProvider(out.provider);
+      setHistory([]);
+      hydrate(await api("/api/projects/" + project.id + "/state"));
+    } catch (e) { setError("Compile failed: " + e.message); }
+    finally { setBusy(null); }
+  }, [project, prd]);
+
+  const runSuite = useCallback(async () => {
+    if (!project) return;
+    setBusy("Running eval suite against demo target"); setError(null); setView("compile");
+    try {
+      await api("/api/projects/" + project.id + "/runs", { method: "POST", body: JSON.stringify({ target_kind: "demo" }) });
+      const s = await api("/api/projects/" + project.id + "/state");
+      hydrate(s);
+      if (s.run && s.run.clause_rates) setHistory(h => [...h, s.run.clause_rates].slice(-12));
+      setView("dashboard");
+    } catch (e) { setError("Run failed: " + e.message); }
+    finally { setBusy(null); }
+  }, [project]);
+
+  const acceptRewrite = useCallback((c) => {
+    setPrd(p => p.includes(c.text) ? p.replace(c.text, c.rewrite) : p + "\n- " + c.rewrite);
+    setClauses(cs => cs.map(x => x.id === c.id
+      ? { ...x, text: c.rewrite, rewrite: null, testability: "testable",
+          lint_reason: "Rewritten — recompile to generate evals for the new wording." }
+      : x));
+    setJustAccepted(c.id);
+    setTimeout(() => setJustAccepted(null), 900);
+  }, []);
+
+  const dirty = prd !== compiledPrd && compiledPrd !== "";
+  const compiled = clauses.length > 0;
+
+  const nav = [
+    ["editor", "Editor", "▤"],
+    ["compile", "Evals", "⚙"],
+    ["dashboard", "Dashboard", "◎"],
+  ];
+
+  return html`<div className="shell">
+    <div className="topbar">
+      <div className="logo"><b>Clause</b><span className="cursor"></span>
+        <span className="tag">PRDs that test themselves</span></div>
+      <div className="top-actions">
+        ${busy && html`<span className="busy">${busy}</span>`}
+        ${provider && html`<span className=${"pill" + (provider === "live" ? " live" : "")}>engine: ${provider}</span>`}
+        <button className="btn ghost sm" title="Toggle theme"
+          onClick=${() => setTheme(t => t === "dark" ? "light" : "dark")}>${theme === "dark" ? "◐ light" : "◑ dark"}</button>
+        <button className="btn" disabled=${!project || !!busy} onClick=${compile}>
+          ${dirty ? "Recompile" : "Compile"}</button>
+        <button className="btn primary" disabled=${!compiled || !!busy} onClick=${runSuite}>Run evals</button>
+      </div>
+    </div>
+    <div className="sidebar">
+      <div className="side-label">Project</div>
+      <div className="side-doc">${project ? project.name : "…"}<small>${clauses.length ? clauses.length + " clauses" : "no compile yet"}</small></div>
+      <div className="side-label">Workspace</div>
+      ${nav.map(([id, label, glyph]) => html`<button key=${id}
+        className=${"nav-item" + (view === id ? " active" : "")} onClick=${() => setView(id)}>
+        <span className="glyph">${glyph}</span>${label}</button>`)}
+    </div>
+    <div className="main">
+      ${view === "editor" && html`
+        <div className="view-head"><h1>Editor</h1>
+          <span className="sub">requirements become addressable, testable clauses</span></div>
+        <${EditorView} prd=${prd} setPrd=${setPrd} clauses=${clauses} selectedId=${selectedId}
+          setSelectedId=${setSelectedId} onAccept=${acceptRewrite} justAccepted=${justAccepted} dirty=${dirty} />`}
+      ${view === "compile" && html`
+        <div className="view-head"><h1>Evals</h1>
+          <span className="sub">prose → eval definition → verdict</span></div>
+        <${CompileView} clauses=${clauses} results=${run ? run.results : null} running=${!!busy} />`}
+      ${view === "dashboard" && html`
+        <div className="view-head"><h1>Dashboard</h1>
+          <span className="sub">is the product keeping its promises?</span></div>
+        <${DashboardView} clauses=${clauses} results=${run ? run.results : null} history=${history} />`}
+    </div>
+    ${error && html`<div className="toast">${error}</div>`}
+  </div>`;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`);
+</script>
+</body>
+</html>
