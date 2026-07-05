@@ -39,7 +39,9 @@ class LiveProvider:
             model=MODEL, max_tokens=2000, system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return _parse_json(msg.content[0].text)
+        # models with extended thinking return ThinkingBlocks before the text
+        text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        return _parse_json(text)
 
     def _render(self, stage: str, p: dict) -> tuple[str, str]:
         if stage == "extract":

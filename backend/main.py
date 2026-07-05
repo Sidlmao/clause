@@ -6,6 +6,10 @@ UI:   http://localhost:8734
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)  # .env is the source of truth
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -79,7 +83,10 @@ async def save_and_compile(pid: str, body: PrdIn):
     db.insert(conn, "prds", {"id": prd_id, "project_id": pid, "content": body.content,
                              "version": version, "created_at": db.now()})
     conn.close()
-    clauses = await compile_prd(prd_id, body.content, body.product_context)
+    try:
+        clauses = await compile_prd(prd_id, body.content, body.product_context)
+    except Exception as e:
+        raise HTTPException(500, f"{type(e).__name__}: {str(e)[:300]}")
     return {"prd_id": prd_id, "version": version, "clauses": clauses,
             "provider": get_provider().name}
 
@@ -146,6 +153,14 @@ def demo_endpoint(body: DemoIn):
 @app.get("/api/sample-prd")
 def sample_prd():
     return {"content": SAMPLE_PRD}
+
+
+@app.get("/api/health")
+def health():
+    import os
+    return {"provider": get_provider().name,
+            "llm_mode": os.environ.get("LLM_MODE", "unset"),
+            "key_present": bool(os.environ.get("ANTHROPIC_API_KEY"))}
 
 
 @app.get("/")
