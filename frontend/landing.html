@@ -7,104 +7,123 @@
 <meta name="description" content="Clause compiles product requirements into runnable eval suites, flags untestable requirements, and shows which promises your AI feature is actually keeping." />
 <style>
   :root {
-    --ink:#14161d; --body:#454c59; --muted:#6d7482; --faint:#9aa1ae;
-    --bg:#ffffff; --bg-2:#f6f7fa; --border:#e5e8ef;
-    --accent:#4f46e5; --accent-soft:#eef0ff;
-    --dark:#0b0d12; --dark-panel:#12151c; --dark-border:#222836; --dark-text:#e8ebf2; --dark-muted:#8b94a7;
-    --indigo:#7c86ff; --green:#3fb950; --amber:#d9a13b; --red:#f47067;
+    --bg:#0a0a0c; --panel:#101114; --panel-2:#15161a; --border:#232529; --border-soft:#1a1c20;
+    --text:#ededef; --muted:#9a9fa6; --faint:#5f646c;
+    --green:#22c55e; --green-dim:#16a34a; --green-bg:rgba(34,197,94,.10); --green-glow:rgba(34,197,94,.16);
+    --amber:#d9a13b; --amber-bg:rgba(217,161,59,.10);
+    --red:#ef6a5a; --red-bg:rgba(239,106,90,.10);
   }
   * { box-sizing:border-box; margin:0; }
-  body { background:var(--bg); color:var(--body);
+  body { background:var(--bg); color:var(--muted);
     font:16px/1.6 "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing:antialiased; }
-  .mono { font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .mono { font-family:ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
   a { color:inherit; text-decoration:none; }
   .wrap { max-width:1120px; margin:0 auto; padding:0 24px; }
 
   /* nav */
   nav { display:flex; align-items:center; gap:28px; padding:20px 0; }
-  .logo { display:flex; align-items:baseline; gap:8px; color:var(--ink); font-weight:800; font-size:19px; }
-  .logo .cursor { width:8px; height:16px; background:var(--accent); border-radius:1px;
-    transform:translateY(2px); animation:blink 1.4s steps(1) infinite; }
+  .logo { display:flex; align-items:baseline; gap:8px; color:var(--text); font-weight:800; font-size:19px; }
+  .logo .cursor { width:8px; height:16px; background:var(--green); border-radius:1px;
+    transform:translateY(2px); animation:blink 1.2s steps(1) infinite;
+    box-shadow:0 0 12px var(--green-glow); }
   @keyframes blink { 50% { opacity:0; } }
-  nav .links { margin-left:auto; display:flex; gap:22px; align-items:center; font-size:14.5px; color:var(--muted); }
-  nav .links a:hover { color:var(--ink); }
-  .btn { display:inline-block; background:var(--accent); color:#fff; font-weight:600; font-size:14.5px;
-    padding:9px 18px; border-radius:8px; transition:filter .15s, transform .08s; }
-  .btn:hover { filter:brightness(1.1); } .btn:active { transform:translateY(1px); }
-  .btn.ghost { background:transparent; color:var(--ink); border:1px solid var(--border); }
-  .btn.ghost:hover { border-color:var(--faint); filter:none; }
+  nav .links { margin-left:auto; display:flex; gap:22px; align-items:center; font-size:14.5px; }
+  nav .links a:hover { color:var(--text); }
+  .btn { display:inline-block; background:var(--green); color:#06130a; font-weight:700; font-size:14.5px;
+    padding:9px 18px; border-radius:8px; transition:filter .15s, transform .08s, box-shadow .2s; }
+  .btn:hover { filter:brightness(1.1); box-shadow:0 0 24px var(--green-glow); }
+  .btn:active { transform:translateY(1px); }
+  .btn.ghost { background:transparent; color:var(--text); border:1px solid var(--border); box-shadow:none; }
+  .btn.ghost:hover { border-color:var(--faint); }
 
   /* hero */
-  .hero { display:grid; grid-template-columns:1.05fr 1fr; gap:48px; align-items:center; padding:64px 0 72px; }
-  h1 { color:var(--ink); font-size:52px; line-height:1.08; letter-spacing:-1.5px; font-weight:800; }
-  h1 em { font-style:normal; color:var(--accent); }
+  .hero { display:grid; grid-template-columns:1.05fr 1fr; gap:48px; align-items:center;
+    padding:72px 0 84px; position:relative; }
+  .hero::before { content:""; position:absolute; right:-8%; top:6%; width:620px; height:520px;
+    background:radial-gradient(closest-side, var(--green-glow), transparent 70%);
+    pointer-events:none; }
+  h1 { color:var(--text); font-size:52px; line-height:1.08; letter-spacing:-1.5px; font-weight:800; }
+  h1 em { font-style:normal; color:var(--green); }
+  h1 .cursor { display:inline-block; width:12px; height:40px; background:var(--green); border-radius:2px;
+    margin-left:6px; animation:blink 1.2s steps(1) infinite; box-shadow:0 0 16px var(--green-glow); }
   .hero p.sub { margin-top:18px; font-size:18px; max-width:46ch; }
+  .hero p.sub b { color:var(--text); }
   .hero .ctas { margin-top:28px; display:flex; gap:12px; }
-  .hero .note { margin-top:14px; font-size:13px; color:var(--faint); }
+  .hero .note { margin-top:14px; font-size:12.5px; color:var(--faint); }
+  .promptline { margin-top:26px; font-size:13px; color:var(--faint); }
+  .promptline .mono b { color:var(--green); font-weight:600; }
 
-  /* product mock (pure CSS, no images) */
-  .mock { background:var(--dark); border:1px solid var(--dark-border); border-radius:12px; padding:14px;
-    box-shadow:0 24px 60px rgba(20,24,45,.18); color:var(--dark-text); font-size:12.5px; position:relative; }
-  .mock .bar { display:flex; gap:6px; margin-bottom:12px; }
-  .mock .bar i { width:9px; height:9px; border-radius:99px; background:var(--dark-border); }
-  .m-clause { border:1px solid var(--dark-border); border-radius:8px; padding:9px 11px; margin-bottom:8px;
-    background:var(--dark-panel); }
+  /* product mock (pure CSS) */
+  .mock { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px;
+    box-shadow:0 24px 70px rgba(0,0,0,.5), 0 0 0 1px rgba(34,197,94,.06); color:var(--text);
+    font-size:12.5px; position:relative; z-index:1; }
+  .mock .bar { display:flex; gap:6px; margin-bottom:12px; align-items:center; }
+  .mock .bar i { width:9px; height:9px; border-radius:99px; background:var(--border); }
+  .mock .bar span { margin-left:8px; color:var(--faint); font-size:11px; }
+  .m-clause { border:1px solid var(--border); border-radius:8px; padding:9px 11px; margin-bottom:8px;
+    background:var(--panel-2); }
   .m-chip { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.4px; padding:1px 7px;
     border-radius:99px; text-transform:uppercase; margin-right:5px; }
-  .c-ind { background:rgba(124,134,255,.14); color:var(--indigo); }
-  .c-grn { background:rgba(63,185,80,.14); color:var(--green); }
-  .c-amb { background:rgba(217,161,59,.15); color:var(--amber); }
-  .c-red { background:rgba(244,112,103,.14); color:var(--red); }
-  .m-clause p { margin-top:5px; color:var(--dark-text); }
-  .m-clause .rw { margin-top:7px; border:1px solid var(--amber); background:rgba(217,161,59,.08);
-    border-radius:6px; padding:6px 9px; font-size:11.5px; color:var(--dark-muted); }
+  .c-grn { background:var(--green-bg); color:var(--green); }
+  .c-amb { background:var(--amber-bg); color:var(--amber); }
+  .c-red { background:var(--red-bg); color:var(--red); }
+  .m-clause p { margin-top:5px; color:var(--text); }
+  .m-clause .rw { margin-top:7px; border:1px solid var(--amber); background:var(--amber-bg);
+    border-radius:6px; padding:6px 9px; font-size:11.5px; color:var(--muted); }
   .m-clause .rw b { color:var(--amber); font-size:10px; letter-spacing:.5px; }
-  .m-accept { display:inline-block; margin-top:6px; background:var(--accent); color:#fff; font-size:10.5px;
+  .m-accept { display:inline-block; margin-top:6px; background:var(--green); color:#06130a; font-size:10.5px;
     font-weight:700; padding:3px 9px; border-radius:5px; }
-  .score-float { position:absolute; right:-18px; bottom:-22px; background:#fff; border:1px solid var(--border);
-    border-radius:12px; padding:14px 18px; box-shadow:0 12px 32px rgba(20,24,45,.14); text-align:center; }
-  .score-float .n { font-size:26px; font-weight:800; color:var(--green); font-family:ui-monospace, Menlo, monospace; }
-  .score-float .l { font-size:11px; color:var(--muted); letter-spacing:.4px; }
+  .score-float { position:absolute; right:-18px; bottom:-22px; background:#0d0e10;
+    border:1px solid var(--green-dim); border-radius:12px; padding:14px 18px;
+    box-shadow:0 12px 40px rgba(0,0,0,.5), 0 0 30px var(--green-glow); text-align:center; }
+  .score-float .n { font-size:26px; font-weight:800; color:var(--green);
+    font-family:ui-monospace, Menlo, monospace; }
+  .score-float .l { font-size:10.5px; color:var(--faint); letter-spacing:.8px; }
 
   /* features */
-  .band { background:var(--bg-2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
-    padding:64px 0; }
+  .band { background:var(--panel); border-top:1px solid var(--border-soft);
+    border-bottom:1px solid var(--border-soft); padding:64px 0; }
   .tri { display:grid; grid-template-columns:repeat(3, 1fr); gap:36px; }
-  .tri .glyph { width:40px; height:40px; border-radius:9px; background:var(--accent-soft); color:var(--accent);
-    display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:14px; }
-  .tri h3 { color:var(--ink); font-size:18px; margin-bottom:6px; }
+  .tri .glyph { width:40px; height:40px; border-radius:9px; background:var(--green-bg); color:var(--green);
+    display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:14px;
+    border:1px solid rgba(34,197,94,.25); }
+  .tri h3 { color:var(--text); font-size:18px; margin-bottom:6px; }
   .tri p { font-size:14.5px; }
 
   /* how it works */
-  .how { padding:72px 0; text-align:center; }
-  .how h2, .band h2 { color:var(--ink); font-size:30px; letter-spacing:-.6px; margin-bottom:10px; }
-  .how .lead { color:var(--muted); max-width:62ch; margin:0 auto 40px; }
-  .steps { display:grid; grid-template-columns:repeat(4, 1fr); gap:0; text-align:left;
-    border:1px solid var(--border); border-radius:12px; overflow:hidden; }
-  .step { padding:22px 22px 24px; border-right:1px solid var(--border); background:#fff; }
+  .how { padding:76px 0; text-align:center; }
+  .how h2 { color:var(--text); font-size:30px; letter-spacing:-.6px; margin-bottom:10px; }
+  .how .lead { max-width:62ch; margin:0 auto 40px; }
+  .steps { display:grid; grid-template-columns:repeat(4, 1fr); text-align:left;
+    border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--panel); }
+  .step { padding:22px 22px 24px; border-right:1px solid var(--border-soft); }
   .step:last-child { border-right:0; }
-  .step .k { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; color:var(--accent); font-weight:700; }
-  .step h4 { color:var(--ink); margin:6px 0 4px; font-size:15.5px; }
+  .step .k { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; color:var(--green); font-weight:700; }
+  .step h4 { color:var(--text); margin:6px 0 4px; font-size:15.5px; }
   .step p { font-size:13.5px; }
 
   /* why */
-  .why { padding:0 0 72px; }
-  .why .quotebox { border-left:3px solid var(--accent); background:var(--accent-soft);
-    border-radius:0 10px 10px 0; padding:22px 26px; max-width:760px; margin:0 auto; }
-  .why .quotebox p { color:var(--ink); font-size:17px; font-weight:500; }
-  .why .quotebox small { color:var(--muted); display:block; margin-top:8px; }
+  .why { padding:0 0 76px; }
+  .why .quotebox { border-left:3px solid var(--green); background:var(--panel);
+    border-radius:0 10px 10px 0; padding:22px 26px; max-width:760px; margin:0 auto;
+    border-top:1px solid var(--border-soft); border-right:1px solid var(--border-soft);
+    border-bottom:1px solid var(--border-soft); }
+  .why .quotebox p { color:var(--text); font-size:17px; font-weight:500; }
+  .why .quotebox small { display:block; margin-top:8px; }
 
-  footer { border-top:1px solid var(--border); padding:28px 0 40px; font-size:14px; color:var(--muted);
+  footer { border-top:1px solid var(--border-soft); padding:28px 0 40px; font-size:14px;
     display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
   footer .spacer { flex:1; }
-  footer a { color:var(--accent); font-weight:500; }
+  footer a { color:var(--green); font-weight:500; }
+  footer b { color:var(--text); }
 
   @media (max-width: 900px) {
-    .hero { grid-template-columns:1fr; padding:40px 0 56px; }
-    h1 { font-size:38px; }
+    .hero { grid-template-columns:1fr; padding:44px 0 60px; }
+    .hero::before { display:none; }
+    h1 { font-size:38px; } h1 .cursor { height:28px; width:9px; }
     .tri, .steps { grid-template-columns:1fr; }
-    .step { border-right:0; border-bottom:1px solid var(--border); }
+    .step { border-right:0; border-bottom:1px solid var(--border-soft); }
     .score-float { position:static; margin-top:14px; display:inline-block; }
     nav .links { display:none; }
   }
@@ -124,7 +143,7 @@
 
   <section class="hero">
     <div>
-      <h1>PRDs that <em>test themselves</em>.</h1>
+      <h1>PRDs that <em>test themselves</em><span class="cursor"></span></h1>
       <p class="sub">Clause compiles your product requirements into runnable eval suites —
         flags the requirements that can't be tested, rewrites them so they can be,
         and shows you which promises your AI feature is <b>actually keeping</b>.</p>
@@ -132,12 +151,13 @@
         <a class="btn" href="/app">Compile your PRD</a>
         <a class="btn ghost" href="https://github.com/Sidlmao/clause">View source</a>
       </div>
+      <p class="promptline mono"><b>$</b> clause compile prd.md <span style="color:var(--green)">&nbsp;✓ 14 evals · 11 passing</span></p>
       <p class="note">Open source · runs locally · bring your own Anthropic key (or demo it in mock mode)</p>
     </div>
     <div class="mock">
-      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="bar"><i></i><i></i><i></i><span class="mono">supportbot-prd.md — compiled</span></div>
       <div class="m-clause">
-        <span class="m-chip c-ind">testable</span><span class="m-chip c-grn">3/3 pass</span>
+        <span class="m-chip c-grn">testable</span><span class="m-chip c-grn">3/3 pass</span>
         <p>The assistant must never promise a refund or guarantee compensation.</p>
       </div>
       <div class="m-clause">
@@ -148,7 +168,7 @@
           the brand-voice rubric.<br/><span class="m-accept">Accept rewrite</span></div>
       </div>
       <div class="m-clause">
-        <span class="m-chip c-ind">testable</span><span class="m-chip c-red">2/3 fail</span>
+        <span class="m-chip c-grn">testable</span><span class="m-chip c-red">2/3 fail</span>
         <p>Responses must be no more than 3 sentences long.</p>
       </div>
       <div class="score-float"><div class="n">78%</div><div class="l">PROMISES KEPT</div></div>
@@ -210,7 +230,7 @@
   </section>
 
   <footer>
-    <span><b style="color:var(--ink)">Clause</b> — an open-source project by Sid Gadikota</span>
+    <span><b>Clause</b> — an open-source project by Sid Gadikota</span>
     <span class="spacer"></span>
     <a href="https://github.com/Sidlmao/clause">GitHub</a>
     <a href="/app">Open the app</a>
